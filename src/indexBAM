@@ -1,0 +1,95 @@
+#!/usr/bin/env python3
+# indexBAM.py
+# Index all BAM files in a directory in parallel
+
+import argparse
+import glob
+import os
+import shlex
+import subprocess
+import sys
+
+from functools import partial
+from multiprocessing import Pool
+
+
+#########
+# funcs #
+#########
+
+def worker(bam_path, at_threads):
+	cmd = ["samtools", "index", "-@", str(at_threads), bam_path]
+	result = subprocess.run(cmd)
+	if result.returncode != 0:
+		print(f"[indexBAM] FAILED (exit {result.returncode}): {os.path.basename(bam_path)}", file=sys.stderr)
+	else:
+		print(f"[indexBAM] Indexed: {os.path.basename(bam_path)}")
+
+
+############
+# argparse #
+############
+
+parser = argparse.ArgumentParser(description="Parallel BAM Indexer")
+parser.add_argument("-i", "--input", required=True,
+	help="Path to the directory containing BAM files")
+parser.add_argument("-t", "--threads", type=int, default=1,
+	help="Total threads per samtools index process [%(default)i]")
+parser.add_argument("-j", "--jobs", type=int, default=None,
+	help="Number of parallel jobs [auto: ncpus / threads]")
+parser.add_argument("--dry-run", action="store_true",
+	help="Print commands to stdout instead of running them")
+args = parser.parse_args()
+
+if args.jobs is None:
+	ncpus = os.cpu_count() or 4
+	args.jobs = max(1, ncpus // max(1, args.threads))
+
+
+###########
+# warning #
+###########
+
+# Checks if the user is running interactively in the terminal
+# Suggests using nohup if they are
+if not args.dry_run and sys.stdout.isatty():
+	print("----------------------------------------------------------------")
+	print("TIP: This process may take a long time.")
+	print("If you haven't already, consider stopping this and running with nohup:")
+	print(f"   nohup python3 {sys.argv[0]} -i {args.input} -j {args.jobs} -t {args.threads} > index.log 2>&1 &")
+	print("----------------------------------------------------------------")
+
+
+########
+# main #
+########
+
+target_dir = os.path.abspath(os.path.expanduser(args.input))
+at_threads = max(0, args.threads - 1)
+
+if not os.path.exists(target_dir):
+	sys.exit(f"[indexBAM] Error: Directory {args.input} does not exist")
+
+bam_files = sorted([fn for fn in glob.glob(os.path.join(target_dir, "*.bam")) if os.path.isfile(fn)])
+num_files = len(bam_files)
+
+if not args.dry_run:
+	print(f"[indexBAM] Checking directory: {target_dir}")
+	print(f"[indexBAM] Found {num_files} BAM files")
+
+if num_files == 0:
+	sys.exit(f"[indexBAM] Error: {args.input} has 0 BAM files")
+
+if args.dry_run:
+	for bam in bam_files:
+		print(shlex.join(["samtools", "index", "-@", str(at_threads), bam]))
+	sys.exit(0)
+
+print(f"[indexBAM] Starting indexing with {args.jobs} parallel jobs, {args.threads} thread(s) each...")
+
+pool = Pool(processes=args.jobs)
+pool.map(partial(worker, at_threads=at_threads), bam_files)
+pool.close()
+pool.join()
+
+print("[indexBAM] Indexing completed")
