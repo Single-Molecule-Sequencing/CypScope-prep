@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+# mapONT.py
+# Generate minimap2 | samtools sort commands for ONT alignment
+
+import argparse
+import glob
+import os
+import shlex
+import sys
+
+
+############
+# argparse #
+############
+
+parser = argparse.ArgumentParser(description="ONT Alignment Command Generator")
+parser.add_argument("-i", "--input", required=True,
+	help="Path to the directory containing FASTQ files")
+parser.add_argument("-o", "--output", required=True,
+	help="Path to the output directory for sorted BAM files")
+parser.add_argument("-r", "--ref", required=True,
+	help="Path to the reference FASTA file")
+parser.add_argument("-tm", type=int, default=6,
+	help="Threads for minimap2 -t [%(default)i]")
+parser.add_argument("-ts", type=int, default=None,
+	help="Threads for samtools sort (auto: tm / 3) [auto]")
+parser.add_argument("--cmd-file", default="./mapONT_cmd.txt",
+	help="Path for the generated command file [%(default)s]")
+args = parser.parse_args()
+
+if args.ts is None:
+	args.ts = max(1, args.tm // 3)
+
+
+########
+# main #
+########
+
+input_dir  = os.path.abspath(os.path.expanduser(args.input))
+output_dir = os.path.abspath(os.path.expanduser(args.output))
+ref_path   = os.path.abspath(os.path.expanduser(args.ref))
+cmd_file   = os.path.abspath(os.path.expanduser(args.cmd_file))
+at_sort    = max(0, args.ts - 1)
+cpus_per_job = args.tm + args.ts
+
+os.makedirs(output_dir, exist_ok=True)
+
+if not os.path.exists(input_dir):
+	sys.exit(f"[mapONT] Error: Directory {args.input} does not exist")
+
+if not os.path.exists(ref_path):
+	sys.exit(f"[mapONT] Error: Reference {args.ref} does not exist")
+
+fq_files = sorted(
+	f for ext in ("*.fastq", "*.fq", "*.fastq.gz", "*.fq.gz")
+	for f in glob.glob(os.path.join(input_dir, ext))
+)
+num_files = len(fq_files)
+
+print(f"[mapONT] Checking directory: {input_dir}", file=sys.stderr)
+print(f"[mapONT] Found {num_files} FASTQ files", file=sys.stderr)
+
+if num_files == 0:
+	sys.exit(f"[mapONT] Error: {args.input} has 0 FASTQ files")
+
+commands = []
+for fq in fq_files:
+	bname = os.path.basename(fq)
+	for suffix in (".fastq.gz", ".fq.gz", ".fastq", ".fq"):
+		if bname.endswith(suffix):
+			bname = bname[:-len(suffix)]
+			break
+	out_bam = os.path.join(output_dir, f"{bname}.sorted.bam")
+	mm2 = shlex.join(["minimap2", "-t", str(args.tm), "-ax", "map-ont", ref_path, fq])
+	sort = shlex.join(["samtools", "sort", "-@", str(at_sort), "-o", out_bam])
+	cmd = f"{mm2} | {sort}"
+	commands.append(cmd)
+
+with open(cmd_file, "w") as f:
+	for cmd in commands:
+		f.write(cmd + "\n")
+
+print(f"[mapONT] Wrote {len(commands)} commands to {cmd_file}", file=sys.stderr)
+print(f"[mapONT] SLURM hint: request at least {cpus_per_job} CPUs per job (minimap2={args.tm} + samtools={args.ts})")
