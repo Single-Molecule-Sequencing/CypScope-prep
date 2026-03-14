@@ -1,5 +1,5 @@
 .DS_Store
-*.cmd.txt
+*cmd.txt
 
 Backup/
 Sbatch/
