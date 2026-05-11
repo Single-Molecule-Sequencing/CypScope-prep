@@ -1,3 +1,13 @@
+<!-- LAB_DASHBOARDS:BEGIN -->
+<div align="center">
+
+**Lab dashboards** &nbsp;·&nbsp; [🌐 Athey Lab](https://atheylab.org) · [🏠 Org](https://single-molecule-sequencing.github.io/) · [🧬 ont-ecosystem](https://single-molecule-sequencing.github.io/ont-ecosystem/) · [📖 lab-papers](https://single-molecule-sequencing.github.io/lab-papers/) · [📓 lab-wiki](https://single-molecule-sequencing.github.io/lab-wiki/) · [📚 SMS Textbook](https://single-molecule-sequencing.github.io/sms-textbook-web/) · [🌱 lab-system](https://single-molecule-sequencing.github.io/lab-system/) · [🧮 seq-registry](https://single-molecule-sequencing.github.io/seq-registry/) · [🧠 lab-math](https://single-molecule-sequencing.github.io/lab-math/) · [🧪 Sample sheets](https://single-molecule-sequencing.github.io/sss/)
+
+</div>
+
+---
+<!-- LAB_DASHBOARDS:END -->
+
 # CypScope-prep
 
 Preparatory FASTQ extraction and ONT alignment on per-sample BAM files for [CypScope](https://github.com/Single-Molecule-Sequencing/CypScope).
